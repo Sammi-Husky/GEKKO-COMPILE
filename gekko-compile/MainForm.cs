@@ -48,8 +48,19 @@ namespace gekko
                 catch { return 0; }
             }
         }
-        public CompileMode OutputFormat { get; set; }
-
+        public CompileMode OutputFormat
+        {
+            get
+            {
+                return _mode;
+            }
+            set
+            {
+                _mode = value;
+                toolStripComboBox1.SelectedIndex = (int)_mode;
+            }
+        }
+        CompileMode _mode;
 
         private void openToolStripMenuItem_Click(object sender, EventArgs e)
         {
