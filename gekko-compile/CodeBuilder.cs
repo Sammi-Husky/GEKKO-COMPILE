@@ -15,16 +15,17 @@ namespace gekko
         }
 
         public Dictionary<string, uint> AliasedAddresses { get; set; }
-        public string AdjustBranches(string asm, uint address)
+        public string AdjustBranches(string asm, int address)
         {
             List<string> output = new List<string>();
-            string[] lines = asm.Split('\n').Select(x => x.Trim()).ToArray();
-            for (int i = 0; i < lines.Length; i++)
+            string[] lines = asm.Split('\n').Select(x => x.Trim()).Where(x => !string.IsNullOrEmpty(x)).ToArray();
+            string[] asmLines = lines.Where(x => !x.StartsWith(".") && !x.EndsWith(":") && !x.StartsWith("WRITE") && !x.StartsWith("#")).ToArray();
+            for (int i = 0; i < asmLines.Length; i++)
             {
-                if (string.IsNullOrWhiteSpace(lines[i]))
+                if (string.IsNullOrWhiteSpace(asmLines[i]))
                     continue;
 
-                var tmp = lines[i].Trim();
+                var tmp = asmLines[i].Trim();
                 if (tmp.StartsWith("bl "))
                 {
                     try
@@ -32,7 +33,7 @@ namespace gekko
                         string substr1 = tmp.Substring(tmp.IndexOf(' '), tmp.Length - tmp.IndexOf(' ')).Trim();
                         if (AliasedAddresses.ContainsKey(substr1))
                         {
-                            lines[i] = lines[i].Replace(substr1, $"0x{AliasedAddresses[substr1]:X8}");
+                            asmLines[i] = asmLines[i].Replace(substr1, $"0x{AliasedAddresses[substr1]:X8}");
                             substr1 = $"0x{AliasedAddresses[substr1]:X8}";
                         }
 
@@ -45,15 +46,19 @@ namespace gekko
                         {
                             addr = int.Parse(substr1);
                         }
-                        addr -= (int)(address + (i * 4));
-                        lines[i] = lines[i].Remove(tmp.IndexOf(' ')) + $" 0x{addr:X8}";
+                        addr -= address + (i * 4);
+                        for (int x = 0; x < lines.Length; x++)
+                        {
+                            if (lines[x] == tmp)
+                                lines[x] = asmLines[i].Remove(tmp.IndexOf(' ')) + (addr < 0 ? $" 0x{addr:X}" : $" -0x{addr:X}");
+                        }
                     }
                     catch { }
                 }
             }
             return string.Join("\n", lines) + "\n";
         }
-        public string CompileASM(string asm, uint address, out string error)
+        public string CompileASM(string asm, int address, out string error)
         {
             asm = AdjustBranches(asm, address);
 
@@ -71,7 +76,7 @@ namespace gekko
             }
             return "";
         }
-        public string BuildCode(string source, uint address, out string error)
+        public string BuildCode(string source, int address, out string error)
         {
             List<string> output = new List<string>();
             string[] lines = source.Split('\n').Select(x => x.Trim()).ToArray();
@@ -88,7 +93,7 @@ namespace gekko
                         string substr2 = lines[i].Substring(lines[i].IndexOf(',') + 1, lines[i].IndexOf(')') - lines[i].IndexOf(',') - 1).Trim();
 
                         int addr = 0;
-                        int value = 0;
+                        uint value = 0;
                         if (substr1.StartsWith("0x", StringComparison.InvariantCultureIgnoreCase))
                         {
                             addr = int.Parse(substr1.Substring(2), System.Globalization.NumberStyles.HexNumber);
@@ -100,13 +105,13 @@ namespace gekko
 
                         if (substr2.StartsWith("0x", StringComparison.InvariantCultureIgnoreCase))
                         {
-                            value = int.Parse(substr2.Substring(2), System.Globalization.NumberStyles.HexNumber);
+                            value = uint.Parse(substr2.Substring(2), System.Globalization.NumberStyles.HexNumber);
                         }
                         else
                         {
-                            value = int.Parse(substr2);
+                            value = uint.Parse(substr2);
                         }
-                        output.Add(Build04((uint)addr, (uint)value));
+                        output.Add(Build04(addr, value));
                         lines[i] = "";
                     }
                     catch { }
@@ -116,18 +121,18 @@ namespace gekko
             error = _error;
             return string.Join("\n", output);
         }
-        public string BuildC2(uint address, string asm)
+        public string BuildC2(int address, string asm)
         {
             StringBuilder sb = new StringBuilder();
             sb.AppendLine($"{(uint)0xC2 << 24 | (address) & 0x1FFFFFF:X8} {asm.Trim().Split('\n').Count(x => !string.IsNullOrEmpty(x)).ToString("X8")}");
             sb.Append(asm);
             return sb.ToString();
         }
-        public string Build04(uint address, uint value)
+        public string Build04(int address, uint value)
         {
             return $"{0x04 << 24 | (address) & 0x1FFFFFF:X8} {value:X8}";
         }
-        public string Build06(uint address, byte[] data)
+        public string Build06(int address, byte[] data)
         {
             StringBuilder b = new StringBuilder();
             b.AppendLine($"{0x06 << 24 | (address) & 0x1FFFFFF:X8} {data.Length}");
@@ -178,17 +183,15 @@ namespace gekko
                 }
                 else if (line.StartsWith(".include"))
                 {
-                    if (!string.IsNullOrWhiteSpace(MainForm.Instance.Filepath))
+                    var includePath = line.Substring(line.IndexOf(" "), line.Length - line.IndexOf(" ") - 1).Trim().Trim('\"');
+                    var path = Path.Combine(Path.GetDirectoryName(MainForm.Instance.Filepath), includePath);
+                    if (File.Exists(path))
                     {
-                        var path = line.Substring(line.IndexOf(" "), line.Length - line.IndexOf(" ") - 1).Trim().Trim('\"');
-                        path = Path.Combine(Path.GetDirectoryName(MainForm.Instance.Filepath), path);
-                        if (File.Exists(path))
-                            ParseImports(File.ReadAllText(path));
+                        ParseImports(File.ReadAllText(path));
                     }
                     else
                     {
-                        var path = line.Substring(line.IndexOf(" "), line.Length - line.IndexOf(" ") - 1).Trim().Trim('\"');
-                        path = Path.Combine("lib", path);
+                        path = Path.Combine("lib", includePath);
                         if (File.Exists(path))
                             ParseImports(File.ReadAllText(path));
                     }

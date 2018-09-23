@@ -29,7 +29,7 @@ namespace gekko
 
         public CodeBuilder Builder { get; set; }
         public string Filepath { get; set; }
-        public uint Address
+        public int Address
         {
             get
             {
@@ -38,11 +38,11 @@ namespace gekko
                 {
                     if (text.StartsWith("0x"))
                     {
-                        return uint.Parse(text.Substring(2), System.Globalization.NumberStyles.HexNumber);
+                        return int.Parse(text.Substring(2), System.Globalization.NumberStyles.HexNumber);
                     }
                     else
                     {
-                        return uint.Parse(text, System.Globalization.NumberStyles.HexNumber);
+                        return int.Parse(text, System.Globalization.NumberStyles.HexNumber);
                     }
                 }
                 catch { return 0; }
