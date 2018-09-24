@@ -12,28 +12,35 @@ namespace gekko
         public CodeBuilder()
         {
             AliasedAddresses = new Dictionary<string, uint>();
+            Labels = new List<string>();
         }
 
         public Dictionary<string, uint> AliasedAddresses { get; set; }
+        public List<string> Labels { get; set; }
         public string AdjustBranches(string asm, int address)
         {
             List<string> output = new List<string>();
-            string[] lines = asm.Split('\n').Select(x => x.Trim()).Where(x => !string.IsNullOrEmpty(x)).ToArray();
-            string[] asmLines = lines.Where(x => !x.StartsWith(".") && !x.EndsWith(":") && !x.StartsWith("WRITE") && !x.StartsWith("#")).ToArray();
+            string[] lines = asm.Split('\n').Select(x => x.Trim()).ToArray();
+            string[] asmLines = lines.Where(x => !x.StartsWith(".") && !x.EndsWith(":")
+                                            && !x.StartsWith("WRITE") && !x.StartsWith("#")
+                                            && !string.IsNullOrEmpty(x)).ToArray();
             for (int i = 0; i < asmLines.Length; i++)
             {
                 if (string.IsNullOrWhiteSpace(asmLines[i]))
                     continue;
 
                 var tmp = asmLines[i].Trim();
-                if (tmp.StartsWith("bl "))
+                if (tmp.StartsWith("bl ") ||tmp.StartsWith("b "))
                 {
                     try
                     {
                         string substr1 = tmp.Substring(tmp.IndexOf(' '), tmp.Length - tmp.IndexOf(' ')).Trim();
+                        if (Labels.Contains(substr1) && tmp.StartsWith("b "))
+                            continue;
+
                         if (AliasedAddresses.ContainsKey(substr1))
                         {
-                            asmLines[i] = asmLines[i].Replace(substr1, $"0x{AliasedAddresses[substr1]:X8}");
+                            asmLines[i] = tmp.Replace(substr1, $"0x{AliasedAddresses[substr1]:X8}");
                             substr1 = $"0x{AliasedAddresses[substr1]:X8}";
                         }
 
@@ -50,7 +57,10 @@ namespace gekko
                         for (int x = 0; x < lines.Length; x++)
                         {
                             if (lines[x] == tmp)
-                                lines[x] = asmLines[i].Remove(tmp.IndexOf(' ')) + (addr < 0 ? $" 0x{addr:X}" : $" -0x{addr:X}");
+                            {
+                                lines[x] = tmp.Remove(tmp.IndexOf(' ')) + (addr < 0 ? $" -0x{addr:X}" : $" 0x{addr:X}");
+                                break;
+                            }
                         }
                     }
                     catch { }
@@ -79,6 +89,7 @@ namespace gekko
         public string BuildCode(string source, int address, out string error)
         {
             List<string> output = new List<string>();
+            Labels.Clear();
             string[] lines = source.Split('\n').Select(x => x.Trim()).ToArray();
             for (int i = 0; i < lines.Length; i++)
             {
@@ -116,6 +127,12 @@ namespace gekko
                     }
                     catch { }
                 }
+                if (lines[i].EndsWith(":"))
+                {
+                    string substr1 = lines[i].Substring(0,lines[i].Length-1).Trim();
+                    Labels.Add(substr1);
+                }
+
             }
             output.Add(CompileASM(string.Join("\n", lines) + "\n", address, out string _error));
             error = _error;
