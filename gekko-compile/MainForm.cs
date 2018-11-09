@@ -29,7 +29,7 @@ namespace gekko
 
         public CodeBuilder Builder { get; set; }
         public string Filepath { get; set; }
-        public int Address
+        public uint Address
         {
             get
             {
@@ -38,11 +38,11 @@ namespace gekko
                 {
                     if (text.StartsWith("0x"))
                     {
-                        return int.Parse(text.Substring(2), System.Globalization.NumberStyles.HexNumber);
+                        return uint.Parse(text.Substring(2), System.Globalization.NumberStyles.HexNumber);
                     }
                     else
                     {
-                        return int.Parse(text, System.Globalization.NumberStyles.HexNumber);
+                        return uint.Parse(text, System.Globalization.NumberStyles.HexNumber);
                     }
                 }
                 catch { return 0; }
@@ -149,40 +149,45 @@ namespace gekko
             rtbAsm_TextChanged(this, null);
         }
 
-        private void rtbAsm_TextChanged(object sender, FastColoredTextBoxNS.TextChangedEventArgs e)
+        private string OnTextChanged(IProgress<string> progress, string asm)
         {
-            Action<object, DoWorkEventArgs> work = (object snd, DoWorkEventArgs arg) =>
+            Builder.ParseImports(asm);
+            if (OutputFormat == CompileMode.RAW)
             {
-                try
+                string bytecode = Builder.CompileASM(asm, Address, out string error);
+                progress?.Report(error);
+                return bytecode;
+            }
+            else if (OutputFormat == CompileMode.C2)
+            {
+                string bytecode = Builder.CompileASM(asm, Address, out string error);
+                progress?.Report(error);
+                return Builder.BuildC2(Address, bytecode);
+            }
+            else if (OutputFormat == CompileMode.HYBRID)
+            {
+                string output = Builder.BuildHybridCode(asm, Address, out string error);
+                progress?.Report(error);
+                return output;
+            }
+            return "";
+        }
+        private async void rtbAsm_TextChanged(object sender, FastColoredTextBoxNS.TextChangedEventArgs e)
+        {
+            if (Builder == null)
+                return;
+
+            try
+            {
+                var progress = new Progress<string>(update =>
                 {
-                    string asm = "";
-                    this.Invoke(new MethodInvoker(delegate { asm = rtbAsm.Text; }));
-                    Builder.ParseImports(asm);
-                    if (OutputFormat == CompileMode.RAW)
-                    {
-                        string bytecode = Builder.CompileASM(asm, Address, out string error);
-                        this.Invoke(new MethodInvoker(delegate { rtbOutput.Text = bytecode; rtbLog.Text = error; }));
-                    }
-                    else if (OutputFormat == CompileMode.C2)
-                    {
-                        string bytecode = Builder.CompileASM(asm, Address, out string error);
-                        this.Invoke(new MethodInvoker(delegate { rtbOutput.Text = Builder.BuildC2(Address, bytecode); rtbLog.Text = error; }));
-                    }
-                    else if (OutputFormat == CompileMode.HYBRID)
-                    {
-                        string output = Builder.BuildCode(asm, Address, out string error);
-                        this.Invoke(new MethodInvoker(delegate
-                        {
-                            rtbOutput.Text = output; rtbLog.Text = error;
-                        }));
-                    }
-                }
-                catch {; }
-            };
-            using (BackgroundWorker b = new BackgroundWorker())
+                    rtbLog.Text = update;
+                });
+                rtbOutput.Text = await Task.Run(() => OnTextChanged(progress, rtbAsm.Text));
+            }
+            catch (Exception ex)
             {
-                b.DoWork += new DoWorkEventHandler(work);
-                b.RunWorkerAsync();
+                rtbLog.Text = ex.Message;
             }
         }
     }

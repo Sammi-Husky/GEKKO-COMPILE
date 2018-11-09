@@ -255,16 +255,19 @@ namespace System.IO
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
-                    CreateNoWindow = true,
-                    WorkingDirectory = "lib/"
+                    CreateNoWindow = true
                 }
             };
             proc.Start();
-            proc.WaitForExit();
+            
+            
             while (!proc.StandardError.EndOfStream)
                 sb.Append(proc.StandardError.ReadLine() + "\n");
             while (!proc.StandardOutput.EndOfStream)
                 sb.Append(proc.StandardOutput.ReadLine() + "\n");
+
+            proc.WaitForExit();
+            proc.Close();
 
             return sb.ToString();
         }
