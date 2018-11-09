@@ -230,7 +230,7 @@ namespace gekko
                     }
                     else
                     {
-                        path = Path.Combine("lib", includePath);
+                        path = includePath;
                         if (File.Exists(path))
                             ParseImports(File.ReadAllText(path));
                     }
