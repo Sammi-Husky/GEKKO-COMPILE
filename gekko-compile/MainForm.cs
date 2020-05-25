@@ -106,7 +106,7 @@ namespace gekko
             using (StreamWriter writer = File.CreateText(Filepath))
             {
                 writer.WriteLine($"#!A{Address.ToString("X8")}");
-                writer.WriteLine($"#!T{OutputFormat}" + Environment.NewLine);
+                writer.WriteLine($"#!T{OutputFormat}");
                 writer.Write(rtbAsm.Text);
             }
         }
@@ -123,7 +123,7 @@ namespace gekko
                         using (var writer = File.CreateText(dlg.FileName))
                         {
                             writer.WriteLine($"#!A{Address.ToString("X8")}");
-                            writer.WriteLine($"#!T{OutputFormat}" + Environment.NewLine);
+                            writer.WriteLine($"#!T{OutputFormat}");
                             writer.Write(rtbAsm.Text);
                         }
                     else
@@ -152,21 +152,22 @@ namespace gekko
         private string OnTextChanged(IProgress<string> progress, string asm)
         {
             Builder.ParseImports(asm);
+            Builder.InjectAddress = Address;
             if (OutputFormat == CompileMode.RAW)
             {
-                string bytecode = Builder.CompileASM(asm, Address, out string error);
+                string bytecode = Builder.CompileASM(asm, out string error);
                 progress?.Report(error);
                 return bytecode;
             }
             else if (OutputFormat == CompileMode.C2)
             {
-                string bytecode = Builder.CompileASM(asm, Address, out string error);
+                string bytecode = Builder.CompileASM(asm, out string error);
                 progress?.Report(error);
                 return Builder.BuildC2(Address, bytecode);
             }
             else if (OutputFormat == CompileMode.HYBRID)
             {
-                string output = Builder.BuildHybridCode(asm, Address, out string error);
+                string output = Builder.BuildHybridCode(asm, out string error);
                 progress?.Report(error);
                 return output;
             }

@@ -109,6 +109,9 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="lib\common.asm">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
     <Content Include="lib\FastColoredTextBox.dll" />
     <Content Include="lib\powerpc-eabi-as.exe">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
